@@ -1,0 +1,273 @@
+% ist1106992 - Mariana Isabel Marcal Santana
+:- set_prolog_flag(answer_write_options,[max_depth(0)]). % para listas completas
+:- ['dados.pl'], ['keywords.pl']. % ficheiros a importar.
+
+%Qualidade dos Dados
+
+%eventosSemSalas
+
+eventosSemSalas(EventosSemSala):-findall(Id,evento(Id,_,_,_,'semSala'),EventosSemSala).
+
+%eventosSemSalasDiaSemana
+
+eventosSemSalasDiaSemana(DiaDaSemana,EventosSemSala):-
+    findall(Id,(evento(Id,_,_,_,'semSala'),horario(Id,DiaDaSemana,_,_,_,_)),EventosSemSala).
+
+%eventosSemSalasPeriodo
+
+eventosSemSalasPeriodo(ListaPeriodos,EventosSemSala):- 
+    eventosSemSalasPeriodo(ListaPeriodos,EventosSemSala,[]).
+
+periodos(p1,p1_2).
+periodos(p2,p1_2).
+periodos(p3,p3_4).
+periodos(p4,p3_4).
+
+eventosSemSalasPeriodo([Periodo|LPeriodosR],EventosSemSala,L_Aux):-
+    periodos(Periodo,Semestre),
+    findall(Id,(evento(Id,_,_,_,'semSala'),(horario(Id,_,_,_,_,Periodo);horario(Id,_,_,_,_,Semestre))),L_Aux1),
+    append(L_Aux,L_Aux1,L_Aux2),
+    sort(L_Aux2,L_Aux2_sorted),
+    eventosSemSalasPeriodo(LPeriodosR,EventosSemSala,L_Aux2_sorted).
+
+eventosSemSalasPeriodo([],L_Aux,L_Aux).
+
+%Pesquisas Simples
+
+%organizaEventos
+
+organizaEventos(Aux,P,L2):-sort(0,@=<,Aux,L),organizaEventos2(L,P,L2).
+
+organizaEventos2([],_,[]).
+
+organizaEventos2([Id|Le],Periodo,[Id|Ep]):-
+    periodos(Periodo,Semestre),
+    (horario(Id,_,_,_,_,Periodo);horario(Id,_,_,_,_,Semestre)),
+    organizaEventos2(Le,Periodo,Ep).
+
+organizaEventos2([Id|Le],Periodo,Ep):-
+    horario(Id,_,_,_,_,Pe),
+    Pe\==Periodo,
+    organizaEventos2(Le,Periodo,Ep).
+
+%eventosMenoresQue
+
+eventosMenoresQue(Duracao,ListaEventosMenoresQue):-
+    findall(Id,(horario(Id,_,_,_,D,_),D=<Duracao),ListaEventosMenoresQue).
+
+%eventosMenoresQueBool
+
+eventosMenoresQueBool(Id,D):-
+    horario(Id,_,_,_,T,_),T=<D.
+
+%procuraDisciplinas
+
+procuraDisciplinas(Curso,ListaDisciplinas):-
+    findall(Disciplina,(turno(Id,Curso,_,_),evento(Id,Disciplina,_,_,_)),ListaD),
+    sort(ListaD,ListaDisciplinas).
+
+%organizaDisciplinas
+
+semestres(p1_2,p1,p2).
+semestres(p3_4,p3,p4).
+
+verificaDisciplinas([],_).
+
+verificaDisciplinas([Disciplina|RListaDisciplinas],Curso):-
+    procuraDisciplinas(Curso,ListaProcuraDisciplinas),
+    member(Disciplina,ListaProcuraDisciplinas),
+    verificaDisciplinas(RListaDisciplinas,Curso).
+
+organizaDisciplinas_aux(_,[],[]).
+
+organizaDisciplinas_aux(Semestre,[Disciplina|RListaDisciplinas],[Disciplina|ListaSemestre]):-
+    semestres(Semestre,P1,P2),
+    evento(Id,Disciplina,_,_,_),
+    (horario(Id,_,_,_,_,Semestre);horario(Id,_,_,_,_,P1);horario(Id,_,_,_,_,P2)),
+    organizaDisciplinas_aux(Semestre,RListaDisciplinas,ListaSemestre).
+
+organizaDisciplinas_aux(Semestre,[Disciplina|RListaDisciplinas],ListaSemestre):-
+    semestres(Semestre,P1,P2),
+    evento(Id,Disciplina,_,_,_),
+    horario(Id,_,_,_,_,Pe),
+    (Pe\==Semestre,Pe\==P1,Pe\==P2),
+    organizaDisciplinas_aux(Semestre,RListaDisciplinas,ListaSemestre).
+
+verificaDisciplinasIguais(_,[],[]).
+
+verificaDisciplinasIguais(ListaSemestre1,[E|RListaSemestre2],[E|ListaSemestre2Final]):-
+    \+member(E,ListaSemestre1),
+    verificaDisciplinasIguais(ListaSemestre1,RListaSemestre2,ListaSemestre2Final).
+
+verificaDisciplinasIguais(ListaSemestre1,[E|RListaSemestre2],ListaSemestre2Final):-
+    member(E,ListaSemestre1),
+    verificaDisciplinasIguais(ListaSemestre1,RListaSemestre2,ListaSemestre2Final).
+
+organizaDisciplinas(ListaDisciplinas,Curso,Semestres):-
+    verificaDisciplinas(ListaDisciplinas,Curso),
+    organizaDisciplinas_aux(p1_2,ListaDisciplinas,ListaSemestre1),
+    organizaDisciplinas_aux(p3_4,ListaDisciplinas,ListaSemestre2),
+    verificaDisciplinasIguais(ListaSemestre1,ListaSemestre2,ListaSemestre2Final),
+    append([ListaSemestre1],[ListaSemestre2Final],Semestres).
+
+%horasCurso
+
+horasCurso(Periodo,Curso,Ano,TotalHoras):-
+    periodos(Periodo,Semestre),
+    findall(Id,(turno(Id,Curso,Ano,_),(horario(Id,_,_,_,_,Periodo);horario(Id,_,_,_,_,Semestre))),ListaId),
+    sort(ListaId,ListaIdsort),
+    findall(Horas,(member(Id,ListaIdsort),horario(Id,_,_,_,Horas,_)),ListaHoras),
+    sumlist(ListaHoras,TotalHoras).
+
+%evolucaoHorasCurso
+
+evolucaoHorasCurso_aux(Curso,Ano,ListaAno):-
+    horasCurso('p1',Curso,Ano,TotalHoras1),
+    horasCurso('p2',Curso,Ano,TotalHoras2),
+    horasCurso('p3',Curso,Ano,TotalHoras3),
+    horasCurso('p4',Curso,Ano,TotalHoras4),
+    append([(Ano,'p1',TotalHoras1)],[(Ano,'p2',TotalHoras2)],TotalHoras1_2),
+    append([(Ano,'p3',TotalHoras3)],[(Ano,'p4',TotalHoras4)],TotalHoras3_4),
+    append(TotalHoras1_2,TotalHoras3_4,ListaAno).
+
+evolucaoHorasCurso(Curso,Evolucao):-
+    evolucaoHorasCurso_aux(Curso,1,ListaAno1),
+    evolucaoHorasCurso_aux(Curso,2,ListaAno2),
+    evolucaoHorasCurso_aux(Curso,3,ListaAno3),
+    append(ListaAno1,ListaAno2,ListaAno1_2),
+    append(ListaAno1_2,ListaAno3,Evolucao).
+
+%Ocupacoes Criticas das Salas
+
+%ocupaSlot
+
+ocupaSlot(HID,HFD,HIE,HFE,Horas):-
+    ((HID=<HIE,HFD>=HFE, Horas is HFE-HIE);
+    (HIE=<HID,HFE>=HFD, Horas is HFD-HID);
+    (HID=<HIE,HFD=<HFE, Horas is HFD-HIE);
+    (HID>=HIE,HFD>=HFE, Horas is HFE-HID)), Horas>0.
+
+%numHorasOcupadas
+
+numHorasOcupadas_aux(Periodo,TipoSala,DiaSemana,ListaId_Salas_DiaSemana):-
+    periodos(Periodo,Semestre),
+    findall(Id,(horario(Id,DiaSemana,_,_,_,Periodo);horario(Id,DiaSemana,_,_,_,Semestre)),ListaId),
+    salas(TipoSala,ListaSalas),
+    findall(Id,(member(Id,ListaId),member(Sala,ListaSalas),evento(Id,_,_,_,Sala)),ListaId_Salas_DiaSemana).
+
+ocupaSlot2(HID,HFD,HIE,HFE,Horas):-
+    ocupaSlot(HID,HFD,HIE,HFE,Horas);
+    Horas is 0.
+
+numHorasOcupadas(Periodo,TipoSala,DiaSemana,HoraInicio,HoraFim,SomaHoras):-
+    numHorasOcupadas_aux(Periodo,TipoSala,DiaSemana,ListaId_Salas_DiaSemana),
+    findall(HoraInicioEvento,(member(Id,ListaId_Salas_DiaSemana),horario(Id,_,HoraInicioEvento,_,_,_)),ListaHIE),
+    findall(HoraFimEvento,(member(Id,ListaId_Salas_DiaSemana),horario(Id,_,_,HoraFimEvento,_,_)),ListaHFE),
+    maplist(ocupaSlot2(HoraInicio,HoraFim),ListaHIE,ListaHFE,ListaHoras),
+    sumlist(ListaHoras,SomaHoras).
+
+%ocupacaoMax
+
+ocupacaoMax(TipoSala,HoraInicio,HoraFim,Max):-
+    salas(TipoSala,ListaSalas),
+    length(ListaSalas,NSalas),
+    Max is NSalas*(HoraFim-HoraInicio).
+
+%percentagem
+
+percentagem(SomaHoras,Max,Percentagem):-
+    Percentagem is SomaHoras/Max*100.
+
+%ocupacaoCritica
+
+salaParaTipoSala(Sala,TipoSala):-
+    salas(TipoSala,ListaSalas),
+    member(Sala,ListaSalas).
+
+verificaOcupacao(HoraInicio,HoraFim,Threshold,Id):-
+    evento(Id,_,_,_,Sala),
+    salaParaTipoSala(Sala,TipoSala),
+    horario(Id,DiaSemana,_,_,_,Periodo),
+    numHorasOcupadas(Periodo,TipoSala,DiaSemana,HoraInicio,HoraFim,SomaHoras),
+    ocupacaoMax(TipoSala,HoraInicio,HoraFim,Max),
+    percentagem(SomaHoras,Max,Percentagem),
+    Percentagem>Threshold.
+
+ocupacaoCritica(HoraInicio,HoraFim,Threshold,ListaId):-
+    findall(Id,(horario(Id,_,HIE,HFE,_,_),ocupaSlot(HoraInicio,HoraFim,HIE,HFE,_)),ListaId1),
+    sort(ListaId1,ListaId1Sorted),
+    include(verificaOcupacao(HoraInicio,HoraFim,Threshold),ListaId1Sorted,ListaId).
+
+%And now for something completely different...
+
+%lugar(N):-lugar(N,OcupacaoMesa).
+%lugar(N,OcupacaoMesa):-
+    lugar(N,[[N,,],[,],[,,]]);
+    lugar(N,[[,N,],[,],[,,]]);
+    lugar(N,[[,,N],[,],[,,]]);
+    lugar(N,[[,,],[N,],[,,]]);
+    lugar(N,[[,,],[,N],[,,]]);
+    lugar(N,[[,,],[,],[N,,]]);
+    lugar(N,[[,,],[,],[,N,]]);
+    lugar(N,[[,,],[,],[,,N]]).
+
+%cab1(N):-cab1(N,OcupacaoMesa).
+%cab1(N,OcupacaoMesa):-
+    cab1(N,[[,,],[N,],[,,]]).
+
+%cab2(N):-cab2(N,OcupacaoMesa).
+%cab2(N,OcupacaoMesa):-
+    cab2(N,[[,,],[,N],[,,]]).
+
+%honra(N,M):-honra(N,M,OcupacaoMesa).
+%honra(N,M,OcupacaoMesa):-
+    honra(N,M,[[,,],[N,],[M,,]]);
+    honra(N,M,[[,,M],[,N],[,,]]).
+
+%lado(N,M):-lado(N,M,OcupacaoMesa).
+%lado(N,M,OcupacaoMesa):-
+    lado(N,M,[[N,M,],[,],[,,]]);
+    lado(N,M,[[,N,M],[,],[,,]]);
+    lado(N,M,[[,,],[,],[N,M,]]);
+    lado(N,M,[[,,],[,],[,N,M]]);
+    lado(N,M,[[M,N,],[,],[,,]]);
+    lado(N,M,[[,M,N],[,],[,,]]);
+    lado(N,M,[[,,],[,],[M,N,]]);
+    lado(N,M,[[,,],[,],[,M,N]]).
+
+%naoLado(N,M):-naoLado(N,M,OcupacaoMesa).
+%naoLado(N,M,OcupacaoMesa):-
+    naoLado(N,M,[[N,,M],[,],[,,]]);
+    naoLado(N,M,[[,,],[,],[N,,M]]);
+    naoLado(N,M,[[M,,N],[,],[,,]]);
+    naoLado(N,M,[[,,],[,],[M,,N]]).
+
+%frente(N,M):-frente(N,M,OcupacaoMesa).
+%frente(N,M,OcupacaoMesa):-
+    frente(N,M,[[N,,],[,],[M,,]]);
+    frente(N,M,[[,N,],[,],[,M,]]);
+    frente(N,M,[[,,N],[,],[,,M]]);
+    frente(N,M,[[M,,],[,],[N,,]]);
+    frente(N,M,[[,M,],[,],[,N,]]);
+    frente(N,M,[[,,M],[,],[,,N]]).
+%naoFrente(N,M):-naoFrente(N,M,OcupacaoMesa).
+%naoFrente(N,M,OcupacaoMesa):-
+    naoFrente(N,M,[[N,,],[,],[,M,]]);
+    naoFrente(N,M,[[N,,],[,],[,,M]]);
+    naoFrente(N,M,[[,N,],[,],[M,,]]);
+    naoFrente(N,M,[[,N,],[,],[,,M]]);
+    naoFrente(N,M,[[,,N],[,],[M,,]]);
+    naoFrente(N,M,[[,,N],[,],[,M,]]);
+    naoFrente(N,M,[[M,,],[,],[,N,]]);
+    naoFrente(N,M,[[M,,],[,],[,,N]]);
+    naoFrente(N,M,[[,M,],[,],[N,,]]);
+    naoFrente(N,M,[[,M,],[,],[,,N]]);
+    naoFrente(N,M,[[,,M],[,],[N,,]]);
+    naoFrente(N,M,[[,,M],[,],[,N,]]).
+
+ocupacaoMesa(OcupacaoMesa):-
+    %findall
+    %maplist(lugar,ListaPessoas,OcupacaoMesa),
+    cab1(e), honra(e, b), cab2(c), honra(c, a), naoFrente(a, b),
+    naoLado(b, f), lado(f, g), frente(b, h),lugar(d).
+    %maplist(insere(OcupacaoMesa),ListaRestricoes)
