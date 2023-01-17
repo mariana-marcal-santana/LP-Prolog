@@ -139,28 +139,15 @@ organizaDisciplinas_aux([Disciplina|RListaDisciplinas],[Disciplina|ListaSemestre
     organizaDisciplinas_aux(RListaDisciplinas,ListaSemestre1,ListaSemestre2).
 
 organizaDisciplinas_aux([Disciplina|RListaDisciplinas],ListaSemestre1,[Disciplina|ListaSemestre2]):-
-    %caso a disciplina seja do semestre 2
+    %caso a disciplina seja do semestre 2 (e nao do semestre 1)
     organizaDisciplinas_aux(RListaDisciplinas,ListaSemestre1,ListaSemestre2).
-
-verificaDisciplinasIguais(_,[],[]):-!.
-
-verificaDisciplinasIguais(ListaSemestre1,[E|RListaSemestre2],[E|ListaSemestre2Final]):-
-    \+member(E,ListaSemestre1),!, 
-    %caso a disciplina nao exista na ListaSemestre1, mantem na ListaSemestre2
-    verificaDisciplinasIguais(ListaSemestre1,RListaSemestre2,ListaSemestre2Final).
-
-verificaDisciplinasIguais(ListaSemestre1,[_|RListaSemestre2],ListaSemestre2Final):-
-    %caso contrario, retira da ListaSemestre2
-    verificaDisciplinasIguais(ListaSemestre1,RListaSemestre2,ListaSemestre2Final).
 
 organizaDisciplinas(ListaDisciplinas,Curso,Semestres):-
     verificaDisciplinas(ListaDisciplinas,Curso),
     %verifica se as disciplinas da ListaDisciplinas sao do Curso, devolve false caso nao sejam
     organizaDisciplinas_aux(ListaDisciplinas,ListaSemestre1,ListaSemestre2),
     %separa as disciplinas pelos 2 semestres
-    verificaDisciplinasIguais(ListaSemestre1,ListaSemestre2,ListaSemestre2Final),
-    %retira disciplinas anuais da ListaSemestre2
-    append([ListaSemestre1],[ListaSemestre2Final],Semestres).
+    append([ListaSemestre1],[ListaSemestre2],Semestres).
 
 /*
 organizaDisciplinas/3
